@@ -97,7 +97,7 @@ The following parameters are embedded in generated PNG metadata (prefixed `DiffC
 DiffCFG Reference, DiffCFG Method, DiffCFG End At
 ```
 
-There is no dedicated enabled key; the presence of `DiffCFG Reference` in a pasted infotext means the extension was on, its absence means off.
+There is no dedicated enabled key; the presence of `DiffCFG Method` in a pasted infotext means the extension was on, its absence means off.
 
 ---
 
@@ -225,7 +225,7 @@ DifferenceCFGはSkimmedCFGの後段で動作するため、生のCFG出力では
 DiffCFG Reference, DiffCFG Method, DiffCFG End At
 ```
 
-専用の有効化キーは持たず、ペーストされたinfotextに`DiffCFG Reference`が存在すれば有効、存在しなければ無効として扱われます。
+専用の有効化キーは持たず、ペーストされたinfotextに`DiffCFG Method`が存在すれば有効、存在しなければ無効として扱われます。
 
 ---
 
