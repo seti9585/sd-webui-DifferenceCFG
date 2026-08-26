@@ -1,0 +1,74 @@
+sd-webui-DifferenceCFG
+Copyright (c) 2026 seti9585
+
+This product includes software developed by Extraltodeus.
+
+  Skimmed_CFG
+  https://github.com/Extraltodeus/Skimmed_CFG
+  Copyright (c) Extraltodeus
+  Licensed under the Apache License, Version 2.0
+
+The Difference CFG algorithm implemented here is a port of the
+DifferenceCFG_PreCFG node from that project. The following files contain
+code derived from the upstream work:
+
+  sd_webui_difference_cfg/core.py
+
+Specifically, interpolated_scales() and the body of the pre-CFG patch are
+ported without algorithmic change. The absolute_sum L1-norm ratio, both
+division-by-zero guards, the fallback_weight computation, the min-max
+normalisation of the absolute difference and the squared / root exponent
+branches all follow the upstream implementation.
+
+
+MODIFICATIONS
+=============
+
+The following changes were made to the upstream work in the course of
+porting it to Forge-derived Stable Diffusion WebUIs. None of them alter the
+algorithm itself.
+
+  * Ported from a ComfyUI node class to a WebUI Script extension. The
+    ComfyUI node schema is replaced by a Gradio UI, and model patching goes
+    through forge_objects.unet rather than a cloned ComfyUI model object.
+
+  * Added a Forge Neo code path. Forge Neo's pre-CFG hook fires before model
+    evaluation with a positional argument tuple, which is incompatible with
+    the dict / conds_out signature the upstream node expects, so on that
+    backend the extension registers a post-CFG hook instead and reconstructs
+    the equivalent result. Where sd-webui-TCFG is active and ordered ahead of
+    this extension, the post-CFG path reads the damped unconditional
+    prediction TCFG stashes in model_options; otherwise it falls back to the
+    raw unconditional prediction.
+
+  * Added priority-based hook insertion. Forge-derived backends append
+    pre-CFG hooks in registration order, which is effectively alphabetical
+    and varies with the set of installed extensions. This extension inserts
+    itself at priority 14.2 so that the assembled chain does not depend on
+    what else happens to be present.
+
+  * Added a chain dump, emitted at sampling time when the environment
+    variable SD_WEBUI_SETI_DEBUG is set to 1, replacing the upstream node's
+    ANSI-coloured startup print.
+
+  * Extended the Reference CFG range from the upstream maximum of 10 to 20,
+    to cover high-CFG workflows where the reference target itself needs to
+    sit above the usual 5 to 10 range.
+
+  * Replaced the direct model_sampling.percent_to_sigma() call with a helper
+    that resolves the sigma schedule across the supported backends.
+
+  * Converted the sigma argument to a Python float through a helper rather
+    than indexing the tensor directly.
+
+  * Added PNG infotext round-trip support using the DiffCFG key prefix, and
+    XYZ Grid axes for the enabled flag and the method dropdown.
+
+  * Added exception handling around the hook so that an internal failure
+    returns the unmodified standard CFG output rather than aborting
+    generation.
+
+  * Split the algorithm out of sd-webui-SkimmedCFG into this repository. The
+    upstream project ships DifferenceCFG_PreCFG alongside the skimming nodes
+    in a single file; this extension carries only the Difference CFG
+    algorithm and none of the shared masking helpers.
