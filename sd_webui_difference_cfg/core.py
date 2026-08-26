@@ -54,6 +54,8 @@ Composition with TCFG on Forge Neo:
 """
 
 import logging
+import os
+import sys
 
 import torch
 
@@ -67,6 +69,62 @@ MARKER = "sd_webui_difference_cfg_v1"
 # relative to other SETI extensions (TCFG=13.0 and SkimmedCFG=14.0 run before
 # this, MaHiRo=15.5 runs after).
 _PRIORITY = 14.2
+
+# Suite-wide debug convention: 0 = off, 1 = apply-time settings + chain dump.
+DEBUG_ENV_VAR = "SD_WEBUI_SETI_DEBUG"
+
+# One chain dump per sampling pass. Reset by apply_difference_cfg().
+_CHAIN_DUMPED = False
+
+
+def _debug_level():
+    try:
+        return int(os.environ.get(DEBUG_ENV_VAR, "0"))
+    except Exception:
+        return 0
+
+
+def _emit(level, fmt, *args):
+    """Emit to both logging and stderr; some forks suppress module loggers."""
+    if _debug_level() < level:
+        return
+    try:
+        msg = (fmt % args) if args else fmt
+    except Exception:
+        msg = str(fmt)
+    text = "[DifferenceCFG] " + msg
+    logger.warning(text)
+    try:
+        print(text, file=sys.stderr, flush=True)
+    except Exception:
+        pass
+
+
+def _describe_chain(fns):
+    """Render a hook list as 'name(priority)' in actual execution order."""
+    parts = []
+    for fn in fns or []:
+        name = getattr(fn, "__name__", None) or type(fn).__name__
+        prio = getattr(fn, "_sd_webui_priority", None)
+        parts.append("%s(%s)" % (name, "-" if prio is None else prio))
+    return " -> ".join(parts) if parts else "(empty)"
+
+
+def _maybe_dump_chain(args) -> None:
+    """Emit the pre-CFG chain once per pass, from inside the hook, so what is
+    printed is the list as the sampler actually holds it at call time. The
+    suite's post-CFG dump (sd-webui-FreSca) reads sampler_post_cfg_function
+    and cannot see this list."""
+    global _CHAIN_DUMPED
+    if _CHAIN_DUMPED or _debug_level() < 1:
+        return
+    _CHAIN_DUMPED = True
+    try:
+        opts = args.get("model_options") or {}
+        _emit(1, "pre-CFG chain: %s",
+              _describe_chain(opts.get("sampler_pre_cfg_function")))
+    except Exception as exc:
+        _emit(1, "pre-CFG chain dump failed: %r", exc)
 
 # Sentinel returned by percent_to_sigma for percent <= 0 (ComfyUI convention).
 _SIGMA_SENTINEL_MAX = 999999999.9
@@ -141,6 +199,50 @@ def _priority_insert_post_cfg(unet, fn) -> None:
             break
 
     unet.model_options[key] = existing[:insert_at] + [fn] + existing[insert_at:]
+
+
+# ---------------------------------------------------------------------------
+# Priority-ordered insertion for the reForge / Forge Classic pre-cfg list
+# ---------------------------------------------------------------------------
+
+def _priority_insert_pre_cfg(unet, fn, disable_cfg1_optimization: bool = False) -> None:
+    """
+    Twin of _priority_insert_post_cfg for the pre-CFG list. Identical
+    semantics, different key.
+
+    Replaces the plain append that set_model_sampler_pre_cfg_function
+    performs. That append made execution order follow extension LOAD order
+    instead of _sd_webui_priority. Because extensions load alphabetically
+    (APG, DifferenceCFG, SkimmedCFG, TCFG), the reForge pre-CFG chain ran in
+    exactly the reverse of the documented order
+    TCFG (13.0) -> SkimmedCFG (14.0) -> DifferenceCFG (14.2) -> APG (14.5).
+    Forge Neo was unaffected: that path already used
+    _priority_insert_post_cfg.
+
+    disable_cfg1_optimization mirrors the flag that
+    set_model_sampler_pre_cfg_function sets, so callers relying on it keep
+    working.
+
+    A new list is built rather than mutating in place, matching the backend
+    helper's semantics, so a cloned unet never leaks the change into its
+    source. Duplicated deliberately: each extension carries its own copy so
+    no cross-extension import dependency exists.
+    """
+    key = "sampler_pre_cfg_function"
+    existing = unet.model_options.get(key, [])
+    priority = fn._sd_webui_priority
+
+    insert_at = len(existing)
+    for i, other in enumerate(existing):
+        other_priority = getattr(other, "_sd_webui_priority", None)
+        if other_priority is not None and other_priority > priority:
+            insert_at = i
+            break
+
+    unet.model_options[key] = existing[:insert_at] + [fn] + existing[insert_at:]
+
+    if disable_cfg1_optimization:
+        unet.model_options["disable_cfg1_optimization"] = True
 
 
 def _stashed_tcfg_uncond(args: dict):
@@ -267,6 +369,7 @@ def _make_difference_fn(reference_cfg: float, method: str, end_at_sigma: float):
     """
     @torch.no_grad()
     def _fn(args):
+        _maybe_dump_chain(args)
         conds_out  = args["conds_out"]
         cond_scale = args["cond_scale"]
         x_orig     = args["input"]
@@ -310,7 +413,12 @@ def _make_difference_fn(reference_cfg: float, method: str, end_at_sigma: float):
             )
         return conds_out
 
+    _fn.__name__ = "_differencecfg_pre_cfg_fn"
     _fn._sd_webui_difference_cfg_marker = MARKER
+    # Ordering tag read by _priority_insert_pre_cfg. Previously only the
+    # Forge Neo post-CFG factory carried this, so the reForge pre-CFG hook
+    # was invisible to priority-based insertion.
+    _fn._sd_webui_priority = _PRIORITY
     return _fn
 
 
@@ -389,6 +497,7 @@ def _make_difference_post_fn(reference_cfg: float, method: str, end_at_sigma: fl
 
         return uncond + cond_scale * (cond - uncond)
 
+    _fn.__name__ = "_differencecfg_post_cfg_fn"
     _fn._sd_webui_difference_cfg_marker = MARKER
     _fn._sd_webui_priority = _PRIORITY
     return _fn
@@ -444,6 +553,9 @@ def apply_difference_cfg(unet, reference_cfg: float, method: str, end_at_percent
         method, reference_cfg, round(end_at_sigma, 2),
     )
 
+    global _CHAIN_DUMPED
+    _CHAIN_DUMPED = False   # one chain dump per sampling pass
+
     pre_fn  = _make_difference_fn(reference_cfg, method, end_at_sigma)
     post_fn = _make_difference_post_fn(reference_cfg, method, end_at_sigma)
 
@@ -451,7 +563,11 @@ def apply_difference_cfg(unet, reference_cfg: float, method: str, end_at_percent
         _priority_insert_post_cfg(unet, post_fn)
         logger.debug("[DifferenceCFG] registered post-CFG hook (Forge Neo backend)")
     else:
-        unet.set_model_sampler_pre_cfg_function(pre_fn)
-        logger.debug("[DifferenceCFG] registered pre-CFG hook (reForge / Forge Classic)")
+        # v1.1: priority-ordered insertion replaces the plain append that
+        # set_model_sampler_pre_cfg_function performs. See
+        # _priority_insert_pre_cfg for why.
+        _priority_insert_pre_cfg(unet, pre_fn)
+        _emit(1, "registered pre-CFG hook (reForge / Forge Classic), "
+                 "priority=%s", _PRIORITY)
 
     return unet
