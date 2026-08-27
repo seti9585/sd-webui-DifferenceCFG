@@ -57,7 +57,7 @@ Expand the **"DifferenceCFG"** accordion in the Script panel.
 | Control | Default | Range | Description |
 |---|---|---|---|
 | **Enable Difference CFG** | Off | — | Master toggle. |
-| **Reference CFG** | 5.0 | 0.0 – 20.0 (step 0.5) | The CFG scale that high-agreement elements are pulled toward. Below the session CFG this calms the image; above it, it strengthens. Equal to the session CFG it does nothing. |
+| **Reference CFG** | 5.0 | 0.0 – 20.0 (step 0.5) | The CFG scale that high-agreement elements are pulled toward. Below the session CFG this calms the image; above it, it strengthens. Equal to the session CFG it does nothing for `linear_distance`, `squared_distance` and `root_distance`; `absolute_sum` is the exception and still shifts the image slightly — see [Measured behaviour](#measured-behaviour). |
 | **Difference Method** | `linear_distance` | dropdown | Selects the weighting curve (or the global fallback for `absolute_sum`). |
 | **End At Percentage** | 0.80 | 0.0 – 1.0 (step 0.01) | Step fraction after which the effect is disabled. A fine adjustment only — see [Measured behaviour](#measured-behaviour). |
 
@@ -254,7 +254,7 @@ Script パネルの **"DifferenceCFG"** アコーディオンを展開します�
 | 項目 | 既定値 | 範囲 | 説明 |
 |---|---|---|---|
 | **Enable Difference CFG** | Off | — | マスタートグル。 |
-| **Reference CFG** | 5.0 | 0.0 – 20.0（刻み 0.5） | 一致度の高い要素が引き寄せられる CFG スケール。セッション CFG より低ければ沈静化、高ければ強調、等しければ何も起きません。 |
+| **Reference CFG** | 5.0 | 0.0 – 20.0（刻み 0.5） | 一致度の高い要素が引き寄せられる CFG スケール。セッション CFG より低ければ沈静化、高ければ強調。`linear_distance`・`squared_distance`・`root_distance` では等しければ何も起きませんが、`absolute_sum` は例外でわずかに変化します。[実測された挙動](#実測された挙動)を参照してください。 |
 | **Difference Method** | `linear_distance` | ドロップダウン | 重み付けカーブ（`absolute_sum` の場合は大局的なフォールバック）を選択します。 |
 | **End At Percentage** | 0.80 | 0.0 – 1.0（刻み 0.01） | この割合のステップ以降で効果を停止します。微調整専用です。[実測された挙動](#実測された挙動)を参照してください。 |
 
