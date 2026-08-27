@@ -81,8 +81,8 @@ class DifferenceCFGScript(scripts.Script):
             gr.HTML(
                 "<p><i>"
                 "<b>Pre-CFG</b>: Mask-free global re-adjustment of the unconditional "
-                "prediction toward a lower reference CFG scale. Softens high-guidance "
-                "artifacts without per-element skimming."
+                "prediction toward a reference CFG scale. Below the session CFG "
+                "this softens high-guidance artifacts; above it, it strengthens."
                 "</i></p>"
             )
             enabled       = gr.Checkbox(label="Enable Difference CFG", value=False)
