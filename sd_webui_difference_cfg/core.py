@@ -12,8 +12,9 @@ the unconditional prediction. Unlike Skimmed CFG it does NOT select individual
 "over-influenced" elements via a skimming mask; instead it either:
 
   * absolute_sum : matches the whole guidance residual's L1 norm at the
-                   session CFG scale to what it would be at a lower reference
-                   scale, deriving a single global fallback weight, then
+                   session CFG scale to what it would be at the reference
+                   scale (which may be lower or higher), deriving a single
+                   global fallback weight, then
                    interpolates the entire uncond toward that reference; or
   * *_distance   : builds a per-element soft weight from the normalized
                    absolute difference between the CFG residual at the session
@@ -532,7 +533,8 @@ def apply_difference_cfg(unet, reference_cfg: float, method: str, end_at_percent
       * reForge / Forge Classic -> Pre-CFG.
 
     Parameters:
-      reference_cfg     : target lower CFG scale to re-adjust uncond toward
+      reference_cfg     : target CFG scale to re-adjust uncond toward (may be
+                          lower or higher than the session CFG)
       method            : one of _DIFF_METHODS
       end_at_percentage : schedule fraction after which the patch is inert
                           (upstream default 0.80)
