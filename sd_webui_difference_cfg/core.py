@@ -1,5 +1,5 @@
 """
-core.py — Difference CFG algorithm
+core.py - Difference CFG algorithm
 ===================================
 Location: extensions/sd-webui-DifferenceCFG/sd_webui_difference_cfg/core.py
 
@@ -12,9 +12,8 @@ the unconditional prediction. Unlike Skimmed CFG it does NOT select individual
 "over-influenced" elements via a skimming mask; instead it either:
 
   * absolute_sum : matches the whole guidance residual's L1 norm at the
-                   session CFG scale to what it would be at the reference
-                   scale (which may be lower or higher), deriving a single
-                   global fallback weight, then
+                   session CFG scale to what it would be at a lower reference
+                   scale, deriving a single global fallback weight, then
                    interpolates the entire uncond toward that reference; or
   * *_distance   : builds a per-element soft weight from the normalized
                    absolute difference between the CFG residual at the session
@@ -358,7 +357,7 @@ def interpolated_scales(
 # ---------------------------------------------------------------------------
 
 def _make_difference_fn(reference_cfg: float, method: str, end_at_sigma: float):
-    """Difference CFG — Pre-CFG (dict / conds_out style).
+    """Difference CFG - Pre-CFG (dict / conds_out style).
 
     Verbatim port of the upstream DifferenceCFG_PreCFG.execute.pre_cfg_patch.
     The whole uncond tensor is re-derived, either globally (absolute_sum:
@@ -427,13 +426,13 @@ def _make_difference_fn(reference_cfg: float, method: str, end_at_sigma: float):
 # Post-CFG factory (Forge Neo)
 # ---------------------------------------------------------------------------
 # Forge Neo post-CFG args dict keys:
-#   "denoised"         — current CFG result (x0 estimate)
-#   "cond_denoised"    — positive prediction
-#   "uncond_denoised"  — negative prediction (None when CFG=1 / uncond off)
-#   "cond_scale"       — CFG scale
-#   "input"            — x_t (noisy latent)
-#   "sigma"            — timestep tensor
-#   "model_options"    — shared dict; read for TCFG's stashed damped uncond
+#   "denoised"         - current CFG result (x0 estimate)
+#   "cond_denoised"    - positive prediction
+#   "uncond_denoised"  - negative prediction (None when CFG=1 / uncond off)
+#   "cond_scale"       - CFG scale
+#   "input"            - x_t (noisy latent)
+#   "sigma"            - timestep tensor
+#   "model_options"    - shared dict; read for TCFG's stashed damped uncond
 #
 # Mirrors the Pre-CFG factory: re-derive the whole uncond, then recompute CFG
 # linearly:
@@ -446,7 +445,7 @@ def _make_difference_fn(reference_cfg: float, method: str, end_at_sigma: float):
 # ---------------------------------------------------------------------------
 
 def _make_difference_post_fn(reference_cfg: float, method: str, end_at_sigma: float):
-    """Difference CFG — Post-CFG (Forge Neo).
+    """Difference CFG - Post-CFG (Forge Neo).
 
     Mirrors _make_difference_fn. Working copies are cloned for safety even
     though no in-place masked writes are performed here.
@@ -533,8 +532,7 @@ def apply_difference_cfg(unet, reference_cfg: float, method: str, end_at_percent
       * reForge / Forge Classic -> Pre-CFG.
 
     Parameters:
-      reference_cfg     : target CFG scale to re-adjust uncond toward (may be
-                          lower or higher than the session CFG)
+      reference_cfg     : target lower CFG scale to re-adjust uncond toward
       method            : one of _DIFF_METHODS
       end_at_percentage : schedule fraction after which the patch is inert
                           (upstream default 0.80)
