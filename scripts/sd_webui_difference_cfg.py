@@ -1,5 +1,5 @@
 """
-sd-webui-DifferenceCFG — Difference CFG for Forge-derived WebUIs
+sd-webui-DifferenceCFG - Difference CFG for Forge-derived WebUIs
 ===============================================================
 Location: extensions/sd-webui-DifferenceCFG/scripts/sd_webui_difference_cfg.py
 
@@ -26,7 +26,7 @@ import gradio as gr
 from modules import scripts, script_callbacks
 
 # ---------------------------------------------------------------------------
-# sys.path — ensure the extension root is importable
+# sys.path - ensure the extension root is importable
 # ---------------------------------------------------------------------------
 _EXT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _EXT_ROOT not in sys.path:
@@ -92,6 +92,15 @@ class DifferenceCFGScript(scripts.Script):
                                         label="Difference Method")
             end_at        = gr.Slider(0.0, 1.0, value=0.80, step=0.01,
                                       label="End At Percentage")
+
+            # ui-config.json persists slider value/min/max/step by label
+            # string and silently overrides the code-defined values above on
+            # startup. Both sliders are excluded from that mechanism so a
+            # future change to the value= defaults above always takes
+            # effect. See the APG / SkimmedCFG extensions for the same
+            # pattern.
+            for slider in (reference_cfg, end_at):
+                slider.do_not_save_to_config = True
 
         # Infotext round-trip (PNG Info -> Send to txt2img / img2img).
         # Metadata is written in process(). "DiffCFG Method" is written only
