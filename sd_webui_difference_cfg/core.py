@@ -517,13 +517,16 @@ def remove_difference_cfg_patches(unet) -> None:
     Only this extension's own hooks (identified by MARKER) are removed, so
     other extensions' pre/post-CFG functions are left untouched.
     """
+    unet.model_options.pop("_seti_skimmedcfg_auto_v1", None)
     for key in ("sampler_pre_cfg_function", "sampler_post_cfg_function"):
         existing = unet.model_options.get(key)
         if isinstance(existing, list):
             unet.model_options[key] = [fn for fn in existing if not _is_difference_cfg_fn(fn)]
 
 
-def apply_difference_cfg(unet, reference_cfg: float, method: str, end_at_percentage: float):
+def apply_difference_cfg(unet, reference_cfg: float, method: str, end_at_percentage: float,
+                         auto_reference=False, auto_budget=0.10,
+                         auto_algorithm="skim-budget-v3-experimental", diagnostics=None):
     """
     Register Difference CFG on unet, choosing the correct hook for the backend.
 
@@ -559,7 +562,22 @@ def apply_difference_cfg(unet, reference_cfg: float, method: str, end_at_percent
     pre_fn  = _make_difference_fn(reference_cfg, method, end_at_sigma)
     post_fn = _make_difference_post_fn(reference_cfg, method, end_at_sigma)
 
+    if auto_reference:
+        from .auto_reference import make_auto_hook
+        pre_fn = make_auto_hook(pre_fn, interpolated_scales, method, end_at_sigma,
+                                auto_budget, auto_algorithm, diagnostics)
+
     if _is_forge_neo_backend():
+        if auto_reference:
+            from .auto_reference import ALGORITHMS
+            if auto_algorithm not in ALGORITHMS:
+                logger.warning("[DifferenceCFG] AUTO_ALGORITHM_UNSUPPORTED: correction disabled")
+                if diagnostics is not None:
+                    diagnostics["AUTO_ALGORITHM_UNSUPPORTED"] = 1
+                return unet
+            logger.warning("[DifferenceCFG] MANUAL_FALLBACK_UNSUPPORTED: Auto is Pre-CFG only")
+            if diagnostics is not None:
+                diagnostics["MANUAL_FALLBACK_UNSUPPORTED"] = 1
         _priority_insert_post_cfg(unet, post_fn)
         logger.debug("[DifferenceCFG] registered post-CFG hook (Forge Neo backend)")
     else:

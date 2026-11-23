@@ -127,7 +127,7 @@ Priority order in the pipeline:
 
 DifferenceCFG runs after SkimmedCFG, so it corrects the already-skimmed output rather than the raw CFG output. This is a deliberate design choice: SkimmedCFG targets disagreement, DifferenceCFG targets agreement, so applying both is not redundant. Stacking many CFG-axis extensions at high CFG (25–30) can still accumulate error faster than any single extension anticipates; if results look over-corrected, disable one extension at a time to isolate the cause before adjusting values further.
 
-Note that the figures in [Measured behaviour](#measured-behaviour) were taken with only TCFG and DifferenceCFG active. SkimmedCFG also rewrites the unconditional prediction, and the interaction of two such rewrites in the same chain has not been measured. Treat the effective-CFG table as a guide for light stacks, not a guarantee inside a full chain.
+Note that the figures in [Measured behaviour](#measured-behaviour) were taken with only TCFG and DifferenceCFG active. SkimmedCFG also rewrites the unconditional prediction, and the Auto combination has now been tested under the conditions documented below; arbitrary stacks remain unverified. Treat the effective-CFG table as a guide for light stacks, not a guarantee inside a full chain.
 
 ### Chain ordering and the debug dump
 
@@ -190,10 +190,47 @@ sd-webui-DifferenceCFG/
 │   └── sd_webui_difference_cfg.py   # Script registration + UI
 └── sd_webui_difference_cfg/
     ├── __init__.py                  # Re-exports from core
-    └── core.py                      # Difference CFG algorithm
+    ├── core.py                      # Difference CFG algorithm
+    ├── auto_reference.py            # Experimental Auto solver
+    └── diagnostics.py               # Auto statistics
 ```
 
 ---
+
+## Auto Reference CFG v3 (experimental)
+
+Auto measures the correction SkimmedCFG actually applied and limits DifferenceCFG's additional correction relative to it. It does not automatically optimize image quality. Auto is OFF by default; Reference CFG remains the manual fallback.
+
+Use matching Auto-capable versions of [DifferenceCFG](https://github.com/seti9585/sd-webui-DifferenceCFG) and [SkimmedCFG](https://github.com/seti9585/sd-webui-SkimmedCFG), then restart WebUI. Updating only DifferenceCFG is insufficient if SkimmedCFG lacks the observation interface. No additional library is required for this integration beyond the existing WebUI dependencies.
+
+The tested setup is reForge + SDXL/Illustrious: session CFG 20, SkimmedCFG Linear Interpolation 3, DifferenceCFG linear_distance, End At 0.8, Auto ON, Budget 0.03.
+
+| Setting | Behavior |
+|---|---|
+| Auto Correction Budget | Normal UI range 0 to 0.10, step 0.005, default 0.03 |
+| Budget 0 | No additional DifferenceCFG correction; SkimmedCFG remains active |
+| Reference CFG | Saved manual value; not the fixed reference used while Auto applies |
+| Legacy Budget | Internal range remains 0 to 1; saved values expand the UI range or refine its step as needed |
+| Missing old Budget field | Historical implicit value 0.10; distinct from the new UI default 0.03 |
+
+The default 0.03 is provisional and based on user preferences, not a universal optimum. Single Scale is covered by synthetic tests, but its Auto image behavior remains unverified. All four DifferenceCFG methods support Auto in v3. Replace/Dual Scales, custom CFG functions and CFG at or below 1 use the manual fallback. Forge Neo also uses manual fallback: its existing manual support does not establish Auto support.
+
+PNG metadata stores Auto ON/OFF, Budget and algorithm. Old PNGs without Auto metadata restore Auto OFF. Fresh UI sessions use `skim-budget-v3-experimental`. Restoring v1/v2 retains the old behavior, including manual fallback for non-linear methods. Session CFG is adjustable; CFG 20 / interpolation 3 is a tested example, not a requirement. See [v3 implementation and tests](AUTO_V3_VALIDATION.md); v3 images remain unverified.
+
+| Console status | Meaning |
+|---|---|
+| AUTO_APPLIED | Auto correction applied |
+| AUTO_NO_CORRECTION | Auto calculated zero additional correction |
+| MANUAL_FALLBACK_* | Manual Reference CFG used when predictions are available |
+| DIFF_GATE_OFF | Outside the DifferenceCFG application interval |
+| AUTO_CONTRACT_INVALID / AUTO_NUMERIC_INVALID / AUTO_ALGORITHM_UNSUPPORTED | Additional Auto correction rejected |
+| INFERENCE_SNAPSHOT | Integrity guard used for inference tensors; not an error |
+
+Statistics include only successful AUTO_APPLIED calls. PNG summaries are cumulative through the current batch; console summaries cover the request. No successful applications yields N/A statistics. Diagnostic collection does not add tensor synchronization calls; Auto itself performs transfers and its performance has not been benchmarked.
+
+For the preceding v2 build on 2026-11-17, all 57 regression tests passed without skips in the installed reForge environment. User-run generations demonstrated Auto application on three seeds, zero-Budget behavior, PNG Info restoration in both Auto states and manual/Auto switching reproducibility. Image agreement was visual, not a pixel-level comparison. Hires.fix, LoRA, other models, broader extension combinations, Forge Classic Auto, GPU overhead and VRAM overhead remain unverified.
+
+See [current validation](VALIDATION_2026-11-17.md), [document index](DOCUMENTATION.md) and [interface contract](AUTO_REFERENCE_CONTRACT.md). Earlier manual-image measurements in this README are separate from Auto validation.
 
 # 日本語
 
@@ -324,7 +361,7 @@ End At を 1.0 から 0.5 まで下げても、実効 CFG は 5.40 から 5.81 �
 
 DifferenceCFG は SkimmedCFG の後に実行されるため、生の CFG 出力ではなく、すでに skim 処理された出力を補正します。これは意図的な設計です。SkimmedCFG は食い違いを、DifferenceCFG は一致を対象とするため、両方を適用することは冗長ではありません。ただし高 CFG（25〜30）で CFG 軸の拡張機能を多数積み重ねると、個々の拡張機能が想定する以上の速さで誤差が蓄積することがあります。過補正に見える場合は、値をさらに調整する前に 1 つずつ無効化して原因を切り分けてください。
 
-なお[実測された挙動](#実測された挙動)の数値は、TCFG と DifferenceCFG のみを有効にして取得したものです。SkimmedCFG も無条件予測を書き換えるため、同一チェーン内で 2 つの書き換えが相互作用した場合の挙動は未測定です。実効 CFG の対応表は軽いスタックでの目安であり、フルチェーン内での保証ではないものとして扱ってください。
+なお[実測された挙動](#実測された挙動)の数値は、TCFG と DifferenceCFG のみを有効にして取得したものです。SkimmedCFG も無条件予測を書き換えるため、Auto連携は後述の条件で確認しましたが、任意の設定や拡張の組み合わせを検証したものではありません。実効 CFG の対応表は軽いスタックでの目安であり、フルチェーン内での保証ではないものとして扱ってください。
 
 ### チェーン順序とデバッグダンプ
 
@@ -387,10 +424,49 @@ sd-webui-DifferenceCFG/
 │   └── sd_webui_difference_cfg.py   # Script登録 + UI
 └── sd_webui_difference_cfg/
     ├── __init__.py                  # coreからの再エクスポート
-    └── core.py                      # Difference CFGアルゴリズム本体
+    ├── core.py                      # Difference CFGアルゴリズム本体
+    ├── auto_reference.py            # 実験版Autoの計算
+    └── diagnostics.py               # Auto統計
 ```
 
 ---
+
+## Auto Reference CFG v3（実験版）
+
+SkimmedCFGが実際に加えた補正量を測り、DifferenceCFGの追加補正をその量に対して制限します。画質を自動最適化する機能ではありません。Autoの初期状態はOFFで、Reference CFGは手動に戻る場合の値として保持します。
+
+Auto連携に対応した[DifferenceCFG](https://github.com/seti9585/sd-webui-DifferenceCFG)と[SkimmedCFG](https://github.com/seti9585/sd-webui-SkimmedCFG)を組み合わせ、更新後はWebUIを再起動してください。古いSkimmedCFGのままDifferenceCFGだけを更新しても観測情報を取得できません。この連携のための追加ライブラリ導入は不要です。
+
+実機で確認した条件はreForge＋SDXL/Illustrious、CFG 20、SkimmedCFGのLinear Interpolation 3、DifferenceCFGのlinear_distance、End At 0.8、Auto ON、Budget 0.03です。
+
+| 項目 | 動作 |
+|---|---|
+| Auto Correction Budget | 通常のUI範囲0～0.10、刻み0.005、初期値0.03 |
+| Budget 0 | DifferenceCFGの追加補正なし。SkimmedCFGは有効のまま |
+| Reference CFG | 保存する手動値。Auto適用中の固定Reference値ではない |
+| 旧PNGのBudget | 内部範囲0～1を維持。必要に応じてUIの上限・刻みを変更して保存値を保持 |
+| 旧データでBudget省略 | 従来の暗黙値0.10。新UI初期値0.03とは区別 |
+
+0.03は利用者の好みに基づく暫定値で、普遍的な最適値ではありません。Single Scaleは合成入力によるテスト対象ですが、Autoの実画像は未確認です。v3はDifferenceCFGの全4方式に対応します。Replace・Dual Scales、特殊なCFG関数、CFGが1以下の場合は手動設定へ戻ります。Forge Neoも手動へ戻るため、既存の手動機能の対応とAuto対応は区別してください。
+
+PNGにはAutoのON/OFF・Budget・アルゴリズムを保存します。Auto情報のない旧PNGではAuto OFFへ戻します。新規UIは`skim-budget-v3-experimental`を使用します。v1・v2のPNG復元時は以前の動作を維持し、linear_distance以外では手動へ戻ります。CFG 20・Linear Interpolation 3は検証例であり、固定条件ではありません。[v3の実装・テスト記録](AUTO_V3_VALIDATION.md)を参照してください。v3の実画像は未確認です。
+
+| ログの表示 | 意味 |
+|---|---|
+| AUTO_APPLIED | Auto補正を適用 |
+| AUTO_NO_CORRECTION | Autoの追加補正量がゼロ |
+| MANUAL_FALLBACK_* | 予測があれば手動Reference CFGで処理 |
+| DIFF_GATE_OFF | DifferenceCFGの適用区間外 |
+| AUTO_CONTRACT_INVALID / AUTO_NUMERIC_INVALID / AUTO_ALGORITHM_UNSUPPORTED | Autoの追加補正を見送り |
+| INFERENCE_SNAPSHOT | 推論テンソルの変更検査を使用。エラーではない |
+
+Reference統計はAUTO_APPLIEDだけを対象とします。PNGには現在のバッチまでの累積値、コンソールには生成要求全体の集計を記録します。適用ゼロではN/Aです。診断集計のためのテンソル同期呼び出しは追加していませんが、Auto自体には転送があり、処理負担は未測定です。
+
+**事実：** 従来のv2は2026年11月17日にインストール先の環境で57テストが成功し、スキップはありませんでした。利用者が実行した生成では、3 seedでのAuto適用、Budget 0、Auto ON/OFF双方のPNG Info復元、手動とAutoの切り替え後の再現性を確認しました。画像の一致は目視であり、画素単位の比較ではありません。
+
+**未確認：** Hires.fix、LoRA、他モデル、広範な他拡張との併用、Forge ClassicのAuto、GPU速度・VRAMの増分です。既存の手動機能の実測値をAutoの画質実績とは扱いません。
+
+[最新の検証記録](VALIDATION_2026-11-17.md)・[文書一覧](DOCUMENTATION.md)・[受け渡し仕様](AUTO_REFERENCE_CONTRACT.md)も参照してください。
 
 ## Acknowledgements / 謝辞
 

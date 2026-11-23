@@ -72,3 +72,36 @@ algorithm itself.
     upstream project ships DifferenceCFG_PreCFG alongside the skimming nodes
     in a single file; this extension carries only the Difference CFG
     algorithm and none of the shared masking helpers.
+
+  * 2026-10-24 experimental Auto Reference: added opt-in correction-budget
+    interoperability, transient observation lifecycle, safe rejection,
+    metadata/diagnostics and CPU tests. No image-quality calibration.
+    Original manual correction formulas are unchanged.
+
+  * 2026-10-24 v2: prioritize Linear Interpolation observations, preserve
+    original mask arithmetic, negotiate mode capability, retain v1 PNG
+    behavior, and add CFG 20 / interpolation 3 CPU tests.
+
+  * 2026-10-25: added CPU-only, request-local Reference CFG diagnostic
+    statistics and floor-hit ratio for successful Auto applications,
+    console/infotext summaries and regression tests. No solver change.
+
+  * 2026-10-25: repaired inference-tensor observation using on-device
+    snapshot integrity checks instead of unavailable version counters;
+    retained normal version guards and added detailed contract reasons.
+    Original correction formulas and Auto budget are unchanged.
+
+  * 2026-10-25: narrowed the normal Auto Budget UI to 0-0.10 with step
+    0.005 and provisional default 0.03, preserving larger legacy PNG
+    values through component updates. Auto math and diagnostics unchanged.
+
+  * 2026-11-17: consolidated Auto usage documentation, distinguished UI
+    default 0.03 from legacy implicit 0.10, and documented current
+    regression and user-run validation with explicit scope limits.
+    No implementation change in this documentation update.
+
+  * 2026-11-17 Auto v3: DifferenceCFG adds squared/root-distance budget
+    weights and a conservative absolute-sum L1 sensitivity bound; native
+    candidate budget guards and manual formulas remain intact. Existing
+    SkimmedCFG observations are reused unchanged. v1/v2 PNG behavior is
+    retained. Added CPU/CUDA synthetic tests; v3 images remain unverified.
